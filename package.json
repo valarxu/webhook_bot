@@ -1,0 +1,19 @@
+{
+  "name": "helius-webhook-receiver",
+  "version": "1.0.0",
+  "description": "A webhook receiver for Helius transactions",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "lt": "lt --port 3000"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.13",
+    "axios": "^1.7.9",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "https-proxy-agent": "^7.0.6",
+    "localtunnel": "^2.0.2",
+    "node-telegram-bot-api": "^0.66.0"
+  }
+}
