@@ -195,7 +195,7 @@ async function sendTelegramMessage(transaction, formattedTime, retryCount = 3) {
 ━━━━━━━━━━━━━━━
 📝 类型: ${transaction.type}
 ⏰ 时间: ${formattedTime}
-🔗 交易哈希: ${transaction.signature}
+🔗 交易哈希: https://solscan.io/tx/${transaction.signature}
 📄 描述: ${processedDescription}
 `;
 
