@@ -25,11 +25,15 @@ async function testTelegramBot() {
 ━━━━━━━━━━━━━━━
 ⏰ 发送时间: ${new Date().toLocaleString('zh-CN')}
 ✅ 如果您收到这条消息，说明 Telegram Bot 配置正确！
+⏰: SWAP | 时间 | <a href="https://solscan.io/}">viewTx</a>
 `;
 
         for (let i = 0; i < 3; i++) {
             try {
-                const result = await bot.sendMessage(TELEGRAM_CHAT_ID, message);
+                const result = await bot.sendMessage(TELEGRAM_CHAT_ID, message, {
+                    parse_mode: 'HTML',
+                    disable_web_page_preview: true
+                });
                 console.log('消息发送成功！');
                 console.log('消息ID:', result.message_id);
                 return;

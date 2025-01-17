@@ -5,6 +5,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const app = express();
 const { fetchOKXToken } = require('./utils/api');
+const { createClient } = require('@supabase/supabase-js');
 
 // 设置端口
 const PORT = process.env.PORT || 3000;
@@ -24,30 +25,45 @@ const pool = mysql.createPool({
 let addressMap = new Map();
 let tokenInfoMap = new Map();
 
+// 初始化 Supabase 客户端
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY
+);
+
 // 加载钱包地址和代币信息
 async function loadCacheData() {
     try {
-        // 加载钱包地址
-        const [walletRows] = await pool.execute(
-            'SELECT address, note FROM wallets LIMIT 100'
-        );
+        // 从 Supabase 加载钱包地址
+        const { data: walletRows, error: walletError } = await supabase
+            .from('wallets')
+            .select('address, note')
+            .limit(100);
+
+        if (walletError) throw walletError;
+
         addressMap.clear();
         walletRows.forEach(row => {
             addressMap.set(row.address, row.note);
         });
+        console.log('已加载钱包地址：', walletRows);
         console.log('已加载钱包地址映射：', addressMap.size, '条记录');
 
-        // 加载代币信息
-        const [tokenRows] = await pool.execute(
-            'SELECT address, symbol, market_cap FROM token_info'
-        );
+        // 从 Supabase 加载代币信息
+        const { data: tokenRows, error: tokenError } = await supabase
+            .from('meme_tokens')
+            .select('contract_address, symbol, marketCap');
+
+        if (tokenError) throw tokenError;
+
         tokenInfoMap.clear();
         tokenRows.forEach(row => {
-            tokenInfoMap.set(row.address, {
+            tokenInfoMap.set(row.contract_address, {
                 symbol: row.symbol,
-                marketCap: row.market_cap
+                marketCap: row.marketCap
             });
         });
+        console.log('已加载代币地址：', tokenInfoMap);
         console.log('已加载代币信息映射：', tokenInfoMap.size, '条记录');
     } catch (error) {
         console.error('加载缓存数据失败:', error);
@@ -57,11 +73,20 @@ async function loadCacheData() {
 // 保存代币信息到数据库
 async function saveTokenInfo(address, symbol, marketCap) {
     try {
-        await pool.execute(
-            'INSERT INTO token_info (address, symbol, market_cap) VALUES (?, ?, ?) ' +
-            'ON DUPLICATE KEY UPDATE symbol = VALUES(symbol), market_cap = VALUES(market_cap)',
-            [address, symbol, marketCap]
-        );
+        const { data, error } = await supabase
+            .from('meme_tokens')
+            .insert([
+                {
+                    contract_address: address,
+                    symbol: symbol,
+                    marketCap: marketCap,
+                    updated_at: new Date().toISOString()
+                }
+            ], {
+                onConflict: 'address'
+            });
+
+        if (error) throw error;
         
         // 更新内存中的缓存
         tokenInfoMap.set(address, { symbol, marketCap });
@@ -74,9 +99,6 @@ async function saveTokenInfo(address, symbol, marketCap) {
 
 // SOL 地址正则表达式
 const SOL_ADDRESS_REGEX = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
-
-// 添加 token 缓存，避免重复请求
-const tokenCache = new Map();
 
 // 处理描述文本，将地址替换为备注
 async function processDescription(transaction) {
@@ -188,20 +210,18 @@ async function saveToMySQL(transaction, formattedTime, retryCount = 3) {
     }
 }
 
-async function sendTelegramMessage(transaction, formattedTime, retryCount = 3) {
-    const processedDescription = await processDescription(transaction);
+async function sendTelegramMessage(processedDescription, transaction, formattedTime, retryCount = 3) {
     const message = `
 🔔 新交易提醒
 ━━━━━━━━━━━━━━━
-📝 类型: ${transaction.type}
-⏰ 时间: ${formattedTime}
-🔗 交易哈希: https://solscan.io/tx/${transaction.signature}
-📄 描述: ${processedDescription}
+⏰: ${transaction.type} | ${formattedTime} | <a href="https://solscan.io/tx/${transaction.signature}">viewTx</a>
+📝: ${processedDescription}
 `;
 
     for (let i = 0; i < retryCount; i++) {
         try {
             const result = await bot.sendMessage(TELEGRAM_CHAT_ID, message, {
+                parse_mode: 'HTML',
                 disable_web_page_preview: true
             });
             console.log('Telegram 消息发送成功！');
@@ -231,13 +251,10 @@ app.post('/webhook', async (req, res) => {
 
     for (const transaction of req.body) {
         const formattedTime = formatTimestamp(transaction.timestamp);
-        const txHash = transaction.signature;
         const processedDescription = await processDescription(transaction);
 
         // 基础信息打印
-        console.log(`交易哈希: ${txHash}`);
-        console.log(`时间: ${formattedTime}`);
-        console.log(`交易类型: ${transaction.type}`);
+        console.log(`时间: ${formattedTime} 交易类型: ${transaction.type}`);
         console.log(`描述: ${processedDescription}`);
 
         // 过滤逻辑：跳过小额 TRANSFER 交易
@@ -263,7 +280,7 @@ app.post('/webhook', async (req, res) => {
         await saveToMySQL(transaction, formattedTime);
 
         // 发送 Telegram 消息
-        await sendTelegramMessage(transaction, formattedTime);
+        await sendTelegramMessage(processedDescription, transaction, formattedTime);
     }
 
     res.status(200).send('OK');
