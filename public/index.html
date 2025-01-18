@@ -64,12 +64,82 @@
         #refreshButton:hover {
             background-color: #2980b9;
         }
+        .wallet-address {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .token-address {
+            color: #e74c3c;
+            text-decoration: none;
+        }
+        .wallet-address:hover, .token-address:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div id="transactions"></div>
     <button id="refreshButton" onclick="loadTransactions()">刷新数据</button>
     <script>
+        // SOL 地址正则表达式
+        const SOL_ADDRESS_REGEX = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
+        
+        // 处理描述文本
+        async function processDescription(transaction) {
+            if (!transaction.description) return '无描述';
+            let description = transaction.description;
+
+            // 获取钱包和代币映射数据
+            const [addressMapRes, tokenMapRes] = await Promise.all([
+                fetch('/api/wallets'),
+                fetch('/api/tokens')
+            ]);
+            
+            const addressMap = await addressMapRes.json();
+            const tokenMap = await tokenMapRes.json();
+
+            // 找出所有 SOL 地址
+            const addresses = description.match(SOL_ADDRESS_REGEX) || [];
+            
+            if (transaction.tx_type === 'TRANSFER') {
+                // 替换每个地址为带颜色的钱包备注和链接
+                for (const address of addresses) {
+                    const note = addressMap[address];
+                    if (note) {
+                        description = description.replace(
+                            new RegExp(address + '\\.?'), 
+                            `<a href="https://solscan.io/account/${address}" target="_blank" class="wallet-address">${note}</a>`
+                        );
+                    }
+                }
+            }
+            else if (transaction.tx_type === 'SWAP' && addresses.length >= 2) {
+                // 处理第一个地址（钱包地址）
+                const firstAddress = addresses[0];
+                const note = addressMap[firstAddress];
+                if (note) {
+                    description = description.replace(
+                        new RegExp(firstAddress + '\\.?'), 
+                        `<a href="https://solscan.io/account/${firstAddress}" target="_blank" class="wallet-address">${note}</a>`
+                    );
+                }
+
+                // 处理剩余的代币地址
+                for (let i = 1; i < addresses.length; i++) {
+                    const address = addresses[i];
+                    const tokenInfo = tokenMap[address];
+                    if (tokenInfo) {
+                        description = description.replace(
+                            new RegExp(address + '\\.?'), 
+                            `<a href="https://solscan.io/token/${address}" target="_blank" class="token-address">${tokenInfo.symbol}(${tokenInfo.marketCap})</a>`
+                        );
+                    }
+                }
+            }
+
+            return description;
+        }
+
         async function loadTransactions() {
             const transactionsDiv = document.getElementById('transactions');
             transactionsDiv.innerHTML = '<div class="loading">加载中...</div>';
@@ -78,24 +148,29 @@
                 const response = await fetch('/api/transactions');
                 const transactions = await response.json();
                 
-                transactionsDiv.innerHTML = transactions.map(tx => `
-                    <div class="transaction-card">
-                        <div>
-                            <span class="transaction-time">${tx.timestamp}</span>
-                            <span class="transaction-type">${tx.tx_type}</span>
+                const processedTransactions = await Promise.all(transactions.map(async tx => {
+                    const processedDescription = await processDescription(tx);
+                    return `
+                        <div class="transaction-card">
+                            <div>
+                                <span class="transaction-time">${tx.timestamp}</span>
+                                <span class="transaction-type">${tx.tx_type}</span>
+                            </div>
+                            <div>
+                                <a href="https://solscan.io/tx/${tx.tx_hash}" 
+                                   target="_blank" 
+                                   class="transaction-hash">
+                                    ${tx.tx_hash}
+                                </a>
+                            </div>
+                            <div class="transaction-description">
+                                ${processedDescription}
+                            </div>
                         </div>
-                        <div>
-                            <a href="https://solscan.io/tx/${tx.tx_hash}" 
-                               target="_blank" 
-                               class="transaction-hash">
-                                ${tx.tx_hash}
-                            </a>
-                        </div>
-                        <div class="transaction-description">
-                            ${tx.description || '无描述'}
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }));
+
+                transactionsDiv.innerHTML = processedTransactions.join('');
             } catch (error) {
                 transactionsDiv.innerHTML = '<div class="loading">加载失败，请重试</div>';
                 console.error('加载失败:', error);
@@ -104,9 +179,6 @@
 
         // 页面加载时自动加载数据
         loadTransactions();
-
-        // 每60秒自动刷新一次
-        // setInterval(loadTransactions, 60000);
     </script>
 </body>
 </html> 

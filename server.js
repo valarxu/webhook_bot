@@ -308,6 +308,34 @@ app.get('/api/transactions', async (req, res) => {
     }
 });
 
+// 添加钱包地址映射API
+app.get('/api/wallets', async (req, res) => {
+    try {
+        const walletObject = {};
+        addressMap.forEach((value, key) => {
+            walletObject[key] = value;
+        });
+        res.json(walletObject);
+    } catch (error) {
+        console.error('获取钱包映射失败:', error);
+        res.status(500).json({ error: '获取数据失败' });
+    }
+});
+
+// 添加代币信息映射API
+app.get('/api/tokens', async (req, res) => {
+    try {
+        const tokenObject = {};
+        tokenInfoMap.forEach((value, key) => {
+            tokenObject[key] = value;
+        });
+        res.json(tokenObject);
+    } catch (error) {
+        console.error('获取代币映射失败:', error);
+        res.status(500).json({ error: '获取数据失败' });
+    }
+});
+
 // 启动服务器
 app.listen(PORT, async () => {
     // 启动时加载缓存数据
