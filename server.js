@@ -52,7 +52,7 @@ async function loadCacheData() {
         // 从 Supabase 加载代币信息
         const { data: tokenRows, error: tokenError } = await supabase
             .from('meme_tokens')
-            .select('contract_address, symbol, marketCap');
+            .select('contract_address, symbol, marketCap, name');
 
         if (tokenError) throw tokenError;
 
@@ -60,7 +60,8 @@ async function loadCacheData() {
         tokenRows.forEach(row => {
             tokenInfoMap.set(row.contract_address, {
                 symbol: row.symbol,
-                marketCap: row.marketCap
+                marketCap: row.marketCap,
+                name: row.name
             });
         });
         console.log('已加载代币地址：', tokenInfoMap);
@@ -71,7 +72,7 @@ async function loadCacheData() {
 }
 
 // 保存代币信息到数据库
-async function saveTokenInfo(address, symbol, marketCap) {
+async function saveTokenInfo(address, symbol, marketCap, name) {
     try {
         const { data, error } = await supabase
             .from('meme_tokens')
@@ -79,19 +80,20 @@ async function saveTokenInfo(address, symbol, marketCap) {
                 {
                     contract_address: address,
                     symbol: symbol,
+                    name: name,
                     marketCap: marketCap,
                     updated_at: new Date().toISOString()
                 }
             ], {
-                onConflict: 'address'
+                onConflict: 'contract_address'
             });
 
         if (error) throw error;
         
         // 更新内存中的缓存
-        tokenInfoMap.set(address, { symbol, marketCap });
+        tokenInfoMap.set(address, { symbol, marketCap, name });
         
-        console.log('代币信息已保存:', { address, symbol, marketCap });
+        console.log('代币信息已保存:', { address, symbol, marketCap, name });
     } catch (error) {
         console.error('保存代币信息失败:', error);
     }
@@ -115,7 +117,7 @@ async function processDescription(transaction) {
             if (note) {
                 description = description.replace(
                     new RegExp(address + '\\.?'), 
-                    `<a href="https://solscan.io/account/${address}"><code style="color: #3498db">${note}</code></a>`
+                    `<a href="https://solscan.io/account/${address}"><span style="color: #3498db">${note}</span></a>`
                 );
             }
         }
@@ -127,7 +129,7 @@ async function processDescription(transaction) {
         if (note) {
             description = description.replace(
                 new RegExp(firstAddress + '\\.?'), 
-                `<a href="https://solscan.io/account/${firstAddress}"><code style="color: #3498db">${note}</code></a>`
+                `<a href="https://solscan.io/account/${firstAddress}"><span style="color: #3498db">${note}</span></a>`
             );
         }
 
@@ -140,7 +142,7 @@ async function processDescription(transaction) {
                     const tokenInfo = tokenInfoMap.get(address);
                     description = description.replace(
                         new RegExp(address + '\\.?'), 
-                        `<code style="color: #e74c3c">${tokenInfo.symbol}(${tokenInfo.marketCap})</code>`
+                        `<a href="https://solscan.io/token/${address}"><span style="color: #e74c3c">${tokenInfo.symbol}(${tokenInfo.marketCap})</span></a>`
                     );
                     continue;
                 }
@@ -152,12 +154,13 @@ async function processDescription(transaction) {
                     const tokenInfo = response.data.data[0];
                     const tokenSymbol = tokenInfo.symbol.toUpperCase();
                     const marketCap = tokenInfo.marketCap;
+                    const tokenName = tokenInfo.name || tokenSymbol;
                     
-                    await saveTokenInfo(address, tokenSymbol, marketCap);
+                    await saveTokenInfo(address, tokenSymbol, marketCap, tokenName);
                     
                     description = description.replace(
                         new RegExp(address + '\\.?'), 
-                        `<code style="color: #e74c3c">${tokenSymbol}(${marketCap})</code>`
+                        `<a href="https://solscan.io/token/${address}"><span style="color: #e74c3c">${tokenSymbol}(${marketCap})</span></a>`
                     );
                 } else {
                     console.log('获取代币信息失败:', response?.data?.msg, response?.data?.code);
@@ -216,7 +219,7 @@ async function saveToMySQL(transaction, formattedTime, retryCount = 3) {
 
 async function sendTelegramMessage(processedDescription, transaction, formattedTime, retryCount = 3) {
     const message = `
-━━━━ 🔔新交易提醒 ━━━━
+━ 🔔新交易提醒 ━
 ⏰: ${transaction.type} | ${formattedTime} | <a href="https://solscan.io/tx/${transaction.signature}">viewTx</a>
 📝: ${processedDescription}
 `;
