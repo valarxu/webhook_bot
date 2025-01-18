@@ -109,11 +109,14 @@ async function processDescription(transaction) {
     const addresses = description.match(SOL_ADDRESS_REGEX) || [];
     
     if (transaction.type === 'TRANSFER') {
-        // 替换每个地址为钱包备注
+        // 替换每个地址为带颜色的钱包备注和链接
         for (const address of addresses) {
             const note = addressMap.get(address);
             if (note) {
-                description = description.replace(new RegExp(address + '\\.?'), note);
+                description = description.replace(
+                    new RegExp(address + '\\.?'), 
+                    `<a href="https://solscan.io/account/${address}"><code style="color: #3498db">${note}</code></a>`
+                );
             }
         }
     }
@@ -122,7 +125,10 @@ async function processDescription(transaction) {
         const firstAddress = addresses[0];
         const note = addressMap.get(firstAddress);
         if (note) {
-            description = description.replace(new RegExp(firstAddress + '\\.?'), note);
+            description = description.replace(
+                new RegExp(firstAddress + '\\.?'), 
+                `<a href="https://solscan.io/account/${firstAddress}"><code style="color: #3498db">${note}</code></a>`
+            );
         }
 
         // 处理剩余的代币地址
@@ -134,7 +140,7 @@ async function processDescription(transaction) {
                     const tokenInfo = tokenInfoMap.get(address);
                     description = description.replace(
                         new RegExp(address + '\\.?'), 
-                        `${tokenInfo.symbol}(${tokenInfo.marketCap})`
+                        `<code style="color: #e74c3c">${tokenInfo.symbol}(${tokenInfo.marketCap})</code>`
                     );
                     continue;
                 }
@@ -147,13 +153,11 @@ async function processDescription(transaction) {
                     const tokenSymbol = tokenInfo.symbol.toUpperCase();
                     const marketCap = tokenInfo.marketCap;
                     
-                    // 保存到数据库和更新缓存
                     await saveTokenInfo(address, tokenSymbol, marketCap);
                     
-                    // 替换地址为代币信息
                     description = description.replace(
                         new RegExp(address + '\\.?'), 
-                        `${tokenSymbol}(${marketCap})`
+                        `<code style="color: #e74c3c">${tokenSymbol}(${marketCap})</code>`
                     );
                 } else {
                     console.log('获取代币信息失败:', response?.data?.msg, response?.data?.code);
@@ -212,8 +216,7 @@ async function saveToMySQL(transaction, formattedTime, retryCount = 3) {
 
 async function sendTelegramMessage(processedDescription, transaction, formattedTime, retryCount = 3) {
     const message = `
-🔔 新交易提醒
-━━━━━━━━━━━━━━━
+━━━━ 🔔新交易提醒 ━━━━
 ⏰: ${transaction.type} | ${formattedTime} | <a href="https://solscan.io/tx/${transaction.signature}">viewTx</a>
 📝: ${processedDescription}
 `;
@@ -255,7 +258,7 @@ app.post('/webhook', async (req, res) => {
 
         // 基础信息打印
         console.log(`时间: ${formattedTime} 交易类型: ${transaction.type}`);
-        console.log(`描述: ${processedDescription}`);
+        console.log(`描述: ${transaction.description}`);
 
         // 过滤逻辑：跳过小额 TRANSFER 交易
         if (transaction.type === 'TRANSFER' && transaction.nativeTransfers) {
