@@ -292,6 +292,22 @@ app.post('/webhook', async (req, res) => {
     res.status(200).send('OK');
 });
 
+// 添加静态文件服务
+app.use(express.static('public'));
+
+// 添加API路由
+app.get('/api/transactions', async (req, res) => {
+    try {
+        const [rows] = await pool.execute(
+            'SELECT tx_hash, tx_type, timestamp, description FROM transactions ORDER BY timestamp DESC LIMIT 100'
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error('获取交易记录失败:', error);
+        res.status(500).json({ error: '获取数据失败' });
+    }
+});
+
 // 启动服务器
 app.listen(PORT, async () => {
     // 启动时加载缓存数据

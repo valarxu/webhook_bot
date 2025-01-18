@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交易监控</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .transaction-card {
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .transaction-time {
+            color: #3498db;
+            font-size: 0.9em;
+        }
+        .transaction-type {
+            background-color: #e74c3c;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        .transaction-hash {
+            color: #2ecc71;
+            text-decoration: none;
+            font-size: 0.9em;
+            word-break: break-all;
+        }
+        .transaction-hash:hover {
+            text-decoration: underline;
+        }
+        .transaction-description {
+            margin-top: 10px;
+            color: #ecf0f1;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 1.2em;
+            color: #3498db;
+        }
+        #refreshButton {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #refreshButton:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div id="transactions"></div>
+    <button id="refreshButton" onclick="loadTransactions()">刷新数据</button>
+    <script>
+        async function loadTransactions() {
+            const transactionsDiv = document.getElementById('transactions');
+            transactionsDiv.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch('/api/transactions');
+                const transactions = await response.json();
+                
+                transactionsDiv.innerHTML = transactions.map(tx => `
+                    <div class="transaction-card">
+                        <div>
+                            <span class="transaction-time">${tx.timestamp}</span>
+                            <span class="transaction-type">${tx.tx_type}</span>
+                        </div>
+                        <div>
+                            <a href="https://solscan.io/tx/${tx.tx_hash}" 
+                               target="_blank" 
+                               class="transaction-hash">
+                                ${tx.tx_hash}
+                            </a>
+                        </div>
+                        <div class="transaction-description">
+                            ${tx.description || '无描述'}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                transactionsDiv.innerHTML = '<div class="loading">加载失败，请重试</div>';
+                console.error('加载失败:', error);
+            }
+        }
+
+        // 页面加载时自动加载数据
+        loadTransactions();
+
+        // 每60秒自动刷新一次
+        // setInterval(loadTransactions, 60000);
+    </script>
+</body>
+</html> 
