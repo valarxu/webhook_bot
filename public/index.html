@@ -84,19 +84,31 @@
         // SOL 地址正则表达式
         const SOL_ADDRESS_REGEX = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
         
+        // 存储映射数据
+        let addressMap = {};
+        let tokenMap = {};
+        
+        // 加载映射数据
+        async function loadMappingData() {
+            try {
+                const [addressMapRes, tokenMapRes] = await Promise.all([
+                    fetch('/api/wallets'),
+                    fetch('/api/tokens')
+                ]);
+                
+                addressMap = await addressMapRes.json();
+                tokenMap = await tokenMapRes.json();
+                
+                console.log('映射数据加载完成');
+            } catch (error) {
+                console.error('加载映射数据失败:', error);
+            }
+        }
+        
         // 处理描述文本
-        async function processDescription(transaction) {
+        function processDescription(transaction) {
             if (!transaction.description) return '无描述';
             let description = transaction.description;
-
-            // 获取钱包和代币映射数据
-            const [addressMapRes, tokenMapRes] = await Promise.all([
-                fetch('/api/wallets'),
-                fetch('/api/tokens')
-            ]);
-            
-            const addressMap = await addressMapRes.json();
-            const tokenMap = await tokenMapRes.json();
 
             // 找出所有 SOL 地址
             const addresses = description.match(SOL_ADDRESS_REGEX) || [];
@@ -148,8 +160,8 @@
                 const response = await fetch('/api/transactions');
                 const transactions = await response.json();
                 
-                const processedTransactions = await Promise.all(transactions.map(async tx => {
-                    const processedDescription = await processDescription(tx);
+                const processedTransactions = transactions.map(tx => {
+                    const processedDescription = processDescription(tx);
                     return `
                         <div class="transaction-card">
                             <div>
@@ -168,17 +180,29 @@
                             </div>
                         </div>
                     `;
-                }));
+                }).join('');
 
-                transactionsDiv.innerHTML = processedTransactions.join('');
+                transactionsDiv.innerHTML = processedTransactions;
             } catch (error) {
                 transactionsDiv.innerHTML = '<div class="loading">加载失败，请重试</div>';
                 console.error('加载失败:', error);
             }
         }
 
-        // 页面加载时自动加载数据
-        loadTransactions();
+        // 初始化函数
+        async function init() {
+            await loadMappingData();
+            await loadTransactions();
+        }
+
+        // 页面加载时初始化
+        init();
+
+        // 刷新按钮点击事件
+        document.getElementById('refreshButton').onclick = async function() {
+            await loadMappingData(); // 刷新时也更新映射数据
+            await loadTransactions();
+        };
     </script>
 </body>
 </html> 
