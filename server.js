@@ -117,7 +117,7 @@ async function processDescription(transaction) {
             if (note) {
                 description = description.replace(
                     new RegExp(address + '\\.?'), 
-                    `<a href="https://solscan.io/account/${address}"><span style="color: #3498db">${note}</span></a>`
+                    `<a href="https://solscan.io/account/${address}"><code style="color: #3498db">${note}</code></a>`
                 );
             }
         }
@@ -129,7 +129,7 @@ async function processDescription(transaction) {
         if (note) {
             description = description.replace(
                 new RegExp(firstAddress + '\\.?'), 
-                `<a href="https://solscan.io/account/${firstAddress}"><span style="color: #3498db">${note}</span></a>`
+                `<a href="https://solscan.io/account/${firstAddress}"><code style="color: #3498db">${note}</code></a>`
             );
         }
 
@@ -142,7 +142,7 @@ async function processDescription(transaction) {
                     const tokenInfo = tokenInfoMap.get(address);
                     description = description.replace(
                         new RegExp(address + '\\.?'), 
-                        `<a href="https://solscan.io/token/${address}"><span style="color: #e74c3c">${tokenInfo.symbol}(${tokenInfo.marketCap})</span></a>`
+                        `<a href="https://solscan.io/token/${address}"><code style="color: #e74c3c">${tokenInfo.symbol}(${tokenInfo.marketCap})</code></a>`
                     );
                     continue;
                 }
@@ -160,7 +160,7 @@ async function processDescription(transaction) {
                     
                     description = description.replace(
                         new RegExp(address + '\\.?'), 
-                        `<a href="https://solscan.io/token/${address}"><span style="color: #e74c3c">${tokenSymbol}(${marketCap})</span></a>`
+                        `<a href="https://solscan.io/token/${address}"><code style="color: #e74c3c">${tokenSymbol}(${marketCap})</code></a>`
                     );
                 } else {
                     console.log('获取代币信息失败:', response?.data?.msg, response?.data?.code);
