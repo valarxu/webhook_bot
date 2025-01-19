@@ -117,7 +117,7 @@ async function processDescription(transaction) {
             if (note) {
                 description = description.replace(
                     new RegExp(address + '\\.?'), 
-                    `<a href="https://solscan.io/account/${address}"><code style="color: #3498db">${note}</code></a>`
+                    `<a href="https://solscan.io/account/${address}">${note}</a>`
                 );
             }
         }
@@ -129,7 +129,7 @@ async function processDescription(transaction) {
         if (note) {
             description = description.replace(
                 new RegExp(firstAddress + '\\.?'), 
-                `<a href="https://solscan.io/account/${firstAddress}"><code style="color: #3498db">${note}</code></a>`
+                `<a href="https://solscan.io/account/${firstAddress}">${note}</a>`
             );
         }
 
@@ -142,7 +142,7 @@ async function processDescription(transaction) {
                     const tokenInfo = tokenInfoMap.get(address);
                     description = description.replace(
                         new RegExp(address + '\\.?'), 
-                        `<a href="https://solscan.io/token/${address}"><code style="color: #e74c3c">${tokenInfo.symbol}(${tokenInfo.marketCap})</code></a>`
+                        `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}(${tokenInfo.marketCap})</a>`
                     );
                     continue;
                 }
@@ -160,7 +160,7 @@ async function processDescription(transaction) {
                     
                     description = description.replace(
                         new RegExp(address + '\\.?'), 
-                        `<a href="https://solscan.io/token/${address}"><code style="color: #e74c3c">${tokenSymbol}(${marketCap})</code></a>`
+                        `<a href="https://solscan.io/token/${address}">${tokenSymbol}(${marketCap})</a>`
                     );
                 } else {
                     console.log('获取代币信息失败:', response?.data?.msg, response?.data?.code);
@@ -219,9 +219,9 @@ async function saveToMySQL(transaction, formattedTime, retryCount = 3) {
 
 async function sendTelegramMessage(processedDescription, transaction, formattedTime, retryCount = 3) {
     const message = `
-━ 🔔新交易提醒 ━
+${processedDescription}
 ⏰: ${transaction.type} | ${formattedTime} | <a href="https://solscan.io/tx/${transaction.signature}">viewTx</a>
-📝: ${processedDescription}
+— 👆 👆 👆 —
 `;
 
     for (let i = 0; i < retryCount; i++) {
