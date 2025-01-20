@@ -106,72 +106,100 @@ const SOL_ADDRESS_REGEX = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
 async function processDescription(transaction) {
     if (!transaction.description) return '无描述';
     let description = transaction.description;
+    let dexscreenerLinks = [];
 
     // 找出所有 SOL 地址
     const addresses = description.match(SOL_ADDRESS_REGEX) || [];
     
-    if (transaction.type === 'TRANSFER') {
-        // 替换每个地址为带颜色的钱包备注和链接
-        for (const address of addresses) {
-            const note = addressMap.get(address);
-            if (note) {
-                description = description.replace(
-                    new RegExp(address + '\\.?'), 
-                    `<a href="https://solscan.io/account/${address}">${note}</a>`
-                );
-            }
+    if (transaction.type === 'TRANSFER' && addresses.length >= 2) {
+        // 处理第一个地址（发送方钱包）
+        const senderAddress = addresses[0];
+        const senderNote = addressMap.get(senderAddress);
+        if (senderNote) {
+            description = description.replace(
+                new RegExp(senderAddress + '\\.?'), 
+                `<a href="https://solscan.io/account/${senderAddress}">${senderNote}</a>`
+            );
+        }
+
+        // 处理中间的代币地址
+        for (let i = 1; i < addresses.length - 1; i++) {
+            const tokenAddress = addresses[i];
+            await processTokenAddress(tokenAddress, description, dexscreenerLinks);
+        }
+
+        // 处理最后一个地址（接收方钱包）
+        const receiverAddress = addresses[addresses.length - 1];
+        const receiverNote = addressMap.get(receiverAddress);
+        if (receiverNote) {
+            description = description.replace(
+                new RegExp(receiverAddress + '\\.?'), 
+                `<a href="https://solscan.io/account/${receiverAddress}">${receiverNote}</a>`
+            );
         }
     }
-    else if (transaction.type === 'SWAP' && addresses.length >= 2) {
+    else if (transaction.type === 'SWAP' && addresses.length >= 1) {
         // 处理第一个地址（钱包地址）
-        const firstAddress = addresses[0];
-        const note = addressMap.get(firstAddress);
+        const walletAddress = addresses[0];
+        const note = addressMap.get(walletAddress);
         if (note) {
             description = description.replace(
-                new RegExp(firstAddress + '\\.?'), 
-                `<a href="https://solscan.io/account/${firstAddress}">${note}</a>`
+                new RegExp(walletAddress + '\\.?'), 
+                `<a href="https://solscan.io/account/${walletAddress}">${note}</a>`
             );
         }
 
         // 处理剩余的代币地址
         for (let i = 1; i < addresses.length; i++) {
-            const address = addresses[i];
-            try {
-                // 先检查本地缓存
-                if (tokenInfoMap.has(address)) {
-                    const tokenInfo = tokenInfoMap.get(address);
-                    description = description.replace(
-                        new RegExp(address + '\\.?'), 
-                        `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}(${tokenInfo.marketCap})</a>`
-                    );
-                    continue;
-                }
-
-                // 如果本地缓存没有，则请求 OKX API
-                const response = await fetchOKXToken(address);
-
-                if (response?.data?.data?.[0]) {
-                    const tokenInfo = response.data.data[0];
-                    const tokenSymbol = tokenInfo.symbol.toUpperCase();
-                    const marketCap = tokenInfo.marketCap;
-                    const tokenName = tokenInfo.name || tokenSymbol;
-                    
-                    await saveTokenInfo(address, tokenSymbol, marketCap, tokenName);
-                    
-                    description = description.replace(
-                        new RegExp(address + '\\.?'), 
-                        `<a href="https://solscan.io/token/${address}">${tokenSymbol}(${marketCap})</a>`
-                    );
-                } else {
-                    console.log('获取代币信息失败:', response?.data?.msg, response?.data?.code);
-                }
-            } catch (error) {
-                console.error('获取代币信息失败:', error.message);
-            }
+            const tokenAddress = addresses[i];
+            await processTokenAddress(tokenAddress, description, dexscreenerLinks);
         }
     }
 
+    // 添加 Dexscreener 链接到描述末尾
+    if (dexscreenerLinks.length > 0) {
+        description += '\n🔍 Dexscreener: ' + dexscreenerLinks.join(' | ');
+    }
+
     return description;
+}
+
+// 处理代币地址的辅助函数
+async function processTokenAddress(address, description, dexscreenerLinks) {
+    try {
+        // 先检查本地缓存
+        if (tokenInfoMap.has(address)) {
+            const tokenInfo = tokenInfoMap.get(address);
+            description = description.replace(
+                new RegExp(address + '\\.?'), 
+                `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}(${tokenInfo.marketCap})</a>`
+            );
+            dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenInfo.symbol}</a>`);
+            return;
+        }
+
+        // 如果本地缓存没有，则请求 OKX API
+        const response = await fetchOKXToken(address);
+
+        if (response?.data?.data?.[0]) {
+            const tokenInfo = response.data.data[0];
+            const tokenSymbol = tokenInfo.symbol.toUpperCase();
+            const marketCap = tokenInfo.marketCap;
+            const tokenName = tokenInfo.name || tokenSymbol;
+            
+            await saveTokenInfo(address, tokenSymbol, marketCap, tokenName);
+            
+            description = description.replace(
+                new RegExp(address + '\\.?'), 
+                `<a href="https://solscan.io/token/${address}">${tokenSymbol}(${marketCap})</a>`
+            );
+            dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenSymbol}</a>`);
+        } else {
+            console.log('获取代币信息失败:', response?.data?.msg, response?.data?.code);
+        }
+    } catch (error) {
+        console.error('获取代币信息失败:', error.message);
+    }
 }
 
 // 初始化 Telegram Bot

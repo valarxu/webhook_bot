@@ -81,13 +81,109 @@
     <div id="transactions"></div>
     <button id="refreshButton" onclick="loadTransactions()">刷新数据</button>
     <script>
-        // SOL 地址正则表达式
+        // 常量定义
         const SOL_ADDRESS_REGEX = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
         
-        // 存储映射数据
+        // 缓存数据
         let addressMap = {};
         let tokenMap = {};
         
+        // 工具函数：创建带样式的链接
+        function createLink(url, text, className) {
+            return `<a href="${url}" target="_blank" class="${className}">${text}</a>`;
+        }
+
+        // 工具函数：创建正则表达式（避免重复创建）
+        function createAddressRegex(address) {
+            return new RegExp(address + '\\.?', 'g');
+        }
+
+        // 处理代币地址的辅助函数
+        function processTokenAddress(address, description, dexscreenerLinks) {
+            const tokenInfo = tokenMap[address];
+            if (tokenInfo) {
+                // 替换代币地址为带链接的显示
+                description = description.replace(
+                    createAddressRegex(address),
+                    createLink(
+                        `https://solscan.io/token/${address}`,
+                        `${tokenInfo.symbol}(${tokenInfo.marketCap})`,
+                        'token-address'
+                    )
+                );
+                
+                // 添加 Dexscreener 链接
+                dexscreenerLinks.push(
+                    createLink(
+                        `https://dexscreener.com/solana/${address}`,
+                        tokenInfo.symbol,
+                        'token-address'
+                    )
+                );
+            }
+            return description;
+        }
+
+        // 处理钱包地址的辅助函数
+        function processWalletAddress(address, description) {
+            const note = addressMap[address];
+            if (note) {
+                return description.replace(
+                    createAddressRegex(address),
+                    createLink(
+                        `https://solscan.io/account/${address}`,
+                        note,
+                        'wallet-address'
+                    )
+                );
+            }
+            return description;
+        }
+        
+        // 处理描述文本的主函数
+        function processDescription(transaction) {
+            if (!transaction.description) return '无描述';
+            let description = transaction.description;
+            let dexscreenerLinks = [];
+
+            try {
+                // 找出所有 SOL 地址
+                const addresses = description.match(SOL_ADDRESS_REGEX) || [];
+                
+                if (transaction.tx_type === 'TRANSFER' && addresses.length >= 2) {
+                    // 处理发送方钱包地址
+                    description = processWalletAddress(addresses[0], description);
+
+                    // 处理中间的代币地址
+                    for (let i = 1; i < addresses.length - 1; i++) {
+                        description = processTokenAddress(addresses[i], description, dexscreenerLinks);
+                    }
+
+                    // 处理接收方钱包地址
+                    description = processWalletAddress(addresses[addresses.length - 1], description);
+                }
+                else if (transaction.tx_type === 'SWAP' && addresses.length >= 1) {
+                    // 处理钱包地址
+                    description = processWalletAddress(addresses[0], description);
+
+                    // 处理所有代币地址
+                    for (let i = 1; i < addresses.length; i++) {
+                        description = processTokenAddress(addresses[i], description, dexscreenerLinks);
+                    }
+                }
+
+                // 添加 Dexscreener 链接到描述末尾
+                if (dexscreenerLinks.length > 0) {
+                    description += '<br>🔍 Dexscreener: ' + dexscreenerLinks.join(' | ');
+                }
+
+                return description;
+            } catch (error) {
+                console.error('处理描述文本时出错:', error);
+                return transaction.description || '处理描述文本时出错';
+            }
+        }
+
         // 加载映射数据
         async function loadMappingData() {
             try {
@@ -96,68 +192,31 @@
                     fetch('/api/tokens')
                 ]);
                 
+                if (!addressMapRes.ok || !tokenMapRes.ok) {
+                    throw new Error('获取映射数据失败');
+                }
+
                 addressMap = await addressMapRes.json();
                 tokenMap = await tokenMapRes.json();
                 
                 console.log('映射数据加载完成');
             } catch (error) {
                 console.error('加载映射数据失败:', error);
+                // 保持旧数据不变，避免清空现有数据
             }
         }
-        
-        // 处理描述文本
-        function processDescription(transaction) {
-            if (!transaction.description) return '无描述';
-            let description = transaction.description;
 
-            // 找出所有 SOL 地址
-            const addresses = description.match(SOL_ADDRESS_REGEX) || [];
-            
-            if (transaction.tx_type === 'TRANSFER') {
-                // 替换每个地址为带颜色的钱包备注和链接
-                for (const address of addresses) {
-                    const note = addressMap[address];
-                    if (note) {
-                        description = description.replace(
-                            new RegExp(address + '\\.?'), 
-                            `<a href="https://solscan.io/account/${address}" target="_blank" class="wallet-address">${note}</a>`
-                        );
-                    }
-                }
-            }
-            else if (transaction.tx_type === 'SWAP' && addresses.length >= 2) {
-                // 处理第一个地址（钱包地址）
-                const firstAddress = addresses[0];
-                const note = addressMap[firstAddress];
-                if (note) {
-                    description = description.replace(
-                        new RegExp(firstAddress + '\\.?'), 
-                        `<a href="https://solscan.io/account/${firstAddress}" target="_blank" class="wallet-address">${note}</a>`
-                    );
-                }
-
-                // 处理剩余的代币地址
-                for (let i = 1; i < addresses.length; i++) {
-                    const address = addresses[i];
-                    const tokenInfo = tokenMap[address];
-                    if (tokenInfo) {
-                        description = description.replace(
-                            new RegExp(address + '\\.?'), 
-                            `<a href="https://solscan.io/token/${address}" target="_blank" class="token-address">${tokenInfo.symbol}(${tokenInfo.marketCap})</a>`
-                        );
-                    }
-                }
-            }
-
-            return description;
-        }
-
+        // 加载交易数据
         async function loadTransactions() {
             const transactionsDiv = document.getElementById('transactions');
             transactionsDiv.innerHTML = '<div class="loading">加载中...</div>';
             
             try {
                 const response = await fetch('/api/transactions');
+                if (!response.ok) {
+                    throw new Error('获取交易数据失败');
+                }
+
                 const transactions = await response.json();
                 
                 const processedTransactions = transactions.map(tx => {
@@ -184,8 +243,8 @@
 
                 transactionsDiv.innerHTML = processedTransactions;
             } catch (error) {
+                console.error('加载交易数据失败:', error);
                 transactionsDiv.innerHTML = '<div class="loading">加载失败，请重试</div>';
-                console.error('加载失败:', error);
             }
         }
 
@@ -200,7 +259,7 @@
 
         // 刷新按钮点击事件
         document.getElementById('refreshButton').onclick = async function() {
-            await loadMappingData(); // 刷新时也更新映射数据
+            await loadMappingData();
             await loadTransactions();
         };
     </script>
