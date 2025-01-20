@@ -327,7 +327,7 @@ app.use(express.static('public'));
 app.get('/api/transactions', async (req, res) => {
     try {
         const [rows] = await pool.execute(
-            'SELECT tx_hash, tx_type, timestamp, description FROM transactions ORDER BY timestamp DESC LIMIT 100'
+            'SELECT tx_hash, tx_type, timestamp, description FROM transactions ORDER BY timestamp DESC LIMIT 20'
         );
         res.json(rows);
     } catch (error) {
