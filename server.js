@@ -172,7 +172,7 @@ async function processTokenAddress(address, description, dexscreenerLinks) {
             const tokenInfo = tokenInfoMap.get(address);
             description = description.replace(
                 new RegExp(address + '\\.?'), 
-                `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}(${tokenInfo.marketCap})</a>`
+                `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}</a>`
             );
             dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenInfo.symbol}</a>`);
             return description;
@@ -191,7 +191,7 @@ async function processTokenAddress(address, description, dexscreenerLinks) {
             
             description = description.replace(
                 new RegExp(address + '\\.?'), 
-                `<a href="https://solscan.io/token/${address}">${tokenSymbol}(${marketCap})</a>`
+                `<a href="https://solscan.io/token/${address}">${tokenSymbol}</a>`
             );
             dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenSymbol}</a>`);
             return description;
