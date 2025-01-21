@@ -125,7 +125,7 @@ async function processDescription(transaction) {
         // 处理中间的代币地址
         for (let i = 1; i < addresses.length - 1; i++) {
             const tokenAddress = addresses[i];
-            await processTokenAddress(tokenAddress, description, dexscreenerLinks);
+            description = await processTokenAddress(tokenAddress, description, dexscreenerLinks);
         }
 
         // 处理最后一个地址（接收方钱包）
@@ -152,7 +152,7 @@ async function processDescription(transaction) {
         // 处理剩余的代币地址
         for (let i = 1; i < addresses.length; i++) {
             const tokenAddress = addresses[i];
-            await processTokenAddress(tokenAddress, description, dexscreenerLinks);
+            description = await processTokenAddress(tokenAddress, description, dexscreenerLinks);
         }
     }
 
@@ -175,7 +175,7 @@ async function processTokenAddress(address, description, dexscreenerLinks) {
                 `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}(${tokenInfo.marketCap})</a>`
             );
             dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenInfo.symbol}</a>`);
-            return;
+            return description;
         }
 
         // 如果本地缓存没有，则请求 OKX API
@@ -194,11 +194,14 @@ async function processTokenAddress(address, description, dexscreenerLinks) {
                 `<a href="https://solscan.io/token/${address}">${tokenSymbol}(${marketCap})</a>`
             );
             dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenSymbol}</a>`);
+            return description;
         } else {
             console.log('获取代币信息失败:', response?.data?.msg, response?.data?.code);
+            return description;
         }
     } catch (error) {
         console.error('获取代币信息失败:', error.message);
+        return description;
     }
 }
 
@@ -248,8 +251,8 @@ async function saveToMySQL(transaction, formattedTime, retryCount = 3) {
 async function sendTelegramMessage(processedDescription, transaction, formattedTime, retryCount = 3) {
     const message = `
 ${processedDescription}
-⏰: ${transaction.type} | ${formattedTime} | <a href="https://solscan.io/tx/${transaction.signature}">viewTx</a>
-— 👆 👆 👆 —
+${transaction.type} | ${formattedTime} | <a href="https://solscan.io/tx/${transaction.signature}">viewTx</a>
+👆 👆 👆
 `;
 
     for (let i = 0; i < retryCount; i++) {
