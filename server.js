@@ -4,7 +4,7 @@ const mysql = require('mysql2/promise');
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const app = express();
-const { fetchOKXToken } = require('./utils/api');
+const { fetchOKXToken, fetchOKXTokenPrice } = require('./utils/api');
 const { createClient } = require('@supabase/supabase-js');
 
 // 设置端口
@@ -170,10 +170,30 @@ async function processTokenAddress(address, description, dexscreenerLinks) {
         // 先检查本地缓存
         if (tokenInfoMap.has(address)) {
             const tokenInfo = tokenInfoMap.get(address);
-            description = description.replace(
-                new RegExp(address + '\\.?'), 
-                `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}</a>`
-            );
+            
+            // 获取实时价格
+            try {
+                const priceResponse = await fetchOKXTokenPrice(address);
+                if (priceResponse?.data?.data?.[0]?.price) {
+                    const price = parseFloat(priceResponse.data.data[0].price).toFixed(4);
+                    description = description.replace(
+                        new RegExp(address + '\\.?'), 
+                        `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}</a> ($${price})`
+                    );
+                } else {
+                    description = description.replace(
+                        new RegExp(address + '\\.?'), 
+                        `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}</a>`
+                    );
+                }
+            } catch (priceError) {
+                console.error('获取实时价格失败:', priceError.message);
+                description = description.replace(
+                    new RegExp(address + '\\.?'), 
+                    `<a href="https://solscan.io/token/${address}">${tokenInfo.symbol}</a>`
+                );
+            }
+
             dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenInfo.symbol}</a>`);
             return description;
         }
@@ -189,10 +209,29 @@ async function processTokenAddress(address, description, dexscreenerLinks) {
             
             await saveTokenInfo(address, tokenSymbol, marketCap, tokenName);
             
-            description = description.replace(
-                new RegExp(address + '\\.?'), 
-                `<a href="https://solscan.io/token/${address}">${tokenSymbol}</a>`
-            );
+            // 获取实时价格
+            try {
+                const priceResponse = await fetchOKXTokenPrice(address);
+                if (priceResponse?.data?.data?.[0]?.price) {
+                    const price = parseFloat(priceResponse.data.data[0].price).toFixed(4);
+                    description = description.replace(
+                        new RegExp(address + '\\.?'), 
+                        `<a href="https://solscan.io/token/${address}">${tokenSymbol}</a> ($${price})`
+                    );
+                } else {
+                    description = description.replace(
+                        new RegExp(address + '\\.?'), 
+                        `<a href="https://solscan.io/token/${address}">${tokenSymbol}</a>`
+                    );
+                }
+            } catch (priceError) {
+                console.error('获取实时价格失败:', priceError.message);
+                description = description.replace(
+                    new RegExp(address + '\\.?'), 
+                    `<a href="https://solscan.io/token/${address}">${tokenSymbol}</a>`
+                );
+            }
+
             dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenSymbol}</a>`);
             return description;
         } else {
@@ -288,13 +327,22 @@ app.post('/webhook', async (req, res) => {
 
     for (const transaction of req.body) {
         const formattedTime = formatTimestamp(transaction.timestamp);
-        const processedDescription = await processDescription(transaction);
-
+        
         // 基础信息打印
         console.log(`时间: ${formattedTime} 交易类型: ${transaction.type}`);
         console.log(`描述: ${transaction.description}`);
 
-        // 过滤逻辑：跳过小额 TRANSFER 交易
+        // 保存到 MySQL
+        saveToMySQL(transaction, formattedTime);
+
+        // 只处理 有描述的类型
+        if (!transaction.description) {
+            console.log(`跳过无描述的交易处理`);
+            console.log('------------------------');
+            continue;
+        }
+
+        // 处理 TRANSFER 类型的小额交易过滤
         if (transaction.type === 'TRANSFER' && transaction.nativeTransfers) {
             const totalAmount = transaction.nativeTransfers.reduce((sum, transfer) => {
                 return sum + (transfer.amount || 0);
@@ -310,14 +358,12 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-        console.log('处理交易...');
-        console.log('------------------------');
-
-        // 保存到 MySQL
-        await saveToMySQL(transaction, formattedTime);
-
-        // 发送 Telegram 消息
+        // 处理描述并发送 Telegram 消息
+        const processedDescription = await processDescription(transaction);
         await sendTelegramMessage(processedDescription, transaction, formattedTime);
+
+        console.log('处理交易完成');
+        console.log('------------------------');
     }
 
     res.status(200).send('OK');
