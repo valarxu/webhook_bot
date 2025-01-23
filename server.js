@@ -102,6 +102,14 @@ async function saveTokenInfo(address, symbol, marketCap, name) {
 // SOL 地址正则表达式
 const SOL_ADDRESS_REGEX = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
 
+function decorateAddress(address) {
+    if (address.length <= 8) {
+        return address; // 如果地址长度小于等于8，直接返回原地址
+    }
+    const prefix = address.slice(0, 4); // 获取前4个字符
+    const suffix = address.slice(-4); // 获取后4个字符
+    return `${prefix}...${suffix}`; // 拼接结果
+}
 // 处理描述文本，将地址替换为备注
 async function processDescription(transaction) {
     if (!transaction.description) return '无描述';
@@ -120,6 +128,11 @@ async function processDescription(transaction) {
                 new RegExp(senderAddress + '\\.?'), 
                 `<a href="https://solscan.io/account/${senderAddress}">${senderNote}</a>`
             );
+        } else {
+            description = description.replace(
+                new RegExp(senderAddress + '\\.?'), 
+                `<a href="https://solscan.io/account/${senderAddress}">${decorateAddress(senderAddress)}</a>`
+            );
         }
 
         // 处理中间的代币地址
@@ -136,6 +149,11 @@ async function processDescription(transaction) {
                 new RegExp(receiverAddress + '\\.?'), 
                 `<a href="https://solscan.io/account/${receiverAddress}">${receiverNote}</a>`
             );
+        } else {
+            description = description.replace(
+                new RegExp(receiverAddress + '\\.?'), 
+                `<a href="https://solscan.io/account/${receiverAddress}">${decorateAddress(receiverAddress)}</a>`
+            );
         }
     }
     else if (transaction.type === 'SWAP' && addresses.length >= 1) {
@@ -147,6 +165,11 @@ async function processDescription(transaction) {
                 new RegExp(walletAddress + '\\.?'), 
                 `<a href="https://solscan.io/account/${walletAddress}">${note}</a>`
             );
+        } else {
+            description = description.replace(
+                new RegExp(walletAddress + '\\.?'), 
+                `<a href="https://solscan.io/account/${walletAddress}">${decorateAddress(walletAddress)}</a>`
+            );
         }
 
         // 处理剩余的代币地址
@@ -154,11 +177,22 @@ async function processDescription(transaction) {
             const tokenAddress = addresses[i];
             description = await processTokenAddress(tokenAddress, description, dexscreenerLinks);
         }
+
+        // 添加 Buy/Sell 标记
+        const swapMatch = description.match(/swapped\s+([\d.]+)\s+([^\s]+).*?for/);
+        if (swapMatch) {
+            const swappedToken = swapMatch[2];
+            if (['SOL', 'USDC', 'USDT'].includes(swappedToken)) {
+                description += '\n💰 Sell |';
+            } else {
+                description += '\n🛍️ Buy |';
+            }
+        }
     }
 
     // 添加 Dexscreener 链接到描述末尾
     if (dexscreenerLinks.length > 0) {
-        description += '\n🔍 Dexscreener: ' + dexscreenerLinks.join(' | ');
+        description += ' 🔍' + dexscreenerLinks.join(' | ');
     }
 
     return description;
