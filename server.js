@@ -179,24 +179,21 @@ async function processDescription(transaction) {
         }
 
         // 添加 Buy/Sell 标记和计算总额
-        let swapMatch = description.match(/swapped\s+([\d,.]+)\s+([^\s]+).*?\$([0-9.]+)\)/);
-        if (!swapMatch) {
-            // 尝试匹配第二种模式（SOL -> Token）
-            swapMatch = description.match(/swapped\s+([\d,.]+)\s+([^\s]+).*?for\s+([\d,.]+)\s+([^\s]+).*?\$([0-9.]+)\)/);
-        }
-
+        let swapMatch = description.match(/swapped\s+([\d,.]+)\s+([^\s]+).*?for\s+([\d,.]+)\s+([^\s]+).*?\$([0-9.]+)\)/);
+        
         if (swapMatch) {
             let amount, token, price;
-            if (swapMatch.length === 4) {
-                // 第一种模式 (Token -> SOL)
-                amount = parseFloat(swapMatch[1].replace(/,/g, ''));
-                token = swapMatch[2];
-                price = parseFloat(swapMatch[3]);
-            } else {
-                // 第二种模式 (SOL -> Token)
-                amount = parseFloat(swapMatch[3].replace(/,/g, ''));
-                token = swapMatch[4];
-                price = parseFloat(swapMatch[5]);
+            // SOL -> Token 的情况
+            if (['SOL', 'USDC', 'USDT'].includes(swapMatch[2])) {
+                amount = parseFloat(swapMatch[3].replace(/,/g, '')); // 使用第二个代币的数量
+                token = swapMatch[4]; // 第二个代币的符号
+                price = parseFloat(swapMatch[5]); // 价格
+            } 
+            // Token -> SOL 的情况
+            else {
+                amount = parseFloat(swapMatch[1].replace(/,/g, '')); // 使用第一个代币的数量
+                token = swapMatch[2]; // 第一个代币的符号
+                price = parseFloat(swapMatch[5]); // 价格
             }
             const totalValue = (amount * price).toFixed(2);
 
@@ -210,7 +207,7 @@ async function processDescription(transaction) {
 
     // 添加 Dexscreener 链接到描述末尾
     if (dexscreenerLinks.length > 0) {
-        description += ' 🔍' + dexscreenerLinks.join(' | ');
+        description += dexscreenerLinks.join(' | ');
     }
 
     return description;
@@ -246,7 +243,7 @@ async function processTokenAddress(address, description, dexscreenerLinks) {
                 );
             }
 
-            dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenInfo.symbol}</a>`);
+            dexscreenerLinks.push(`<a href="https://photon-sol.tinyastro.io/en/lp/${address}">${tokenInfo.symbol}</a>`);
             return description;
         }
 
@@ -284,7 +281,7 @@ async function processTokenAddress(address, description, dexscreenerLinks) {
                 );
             }
 
-            dexscreenerLinks.push(`<a href="https://dexscreener.com/solana/${address}">${tokenSymbol}</a>`);
+            dexscreenerLinks.push(`<a href="https://photon-sol.tinyastro.io/en/lp/${address}">${tokenSymbol}</a>`);
             return description;
         } else {
             console.log('获取代币信息失败:', response?.data?.msg, response?.data?.code);
