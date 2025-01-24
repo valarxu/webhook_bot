@@ -197,10 +197,10 @@ async function processDescription(transaction) {
             }
             const totalValue = (amount * price).toFixed(2);
 
-            if (!['SOL', 'USDC', 'USDT'].includes(token)) {
-                description += `\n🔴 Sell | 总额: $${totalValue} |`;
-            } else {
+            if (['SOL', 'USDC', 'USDT'].includes(swapMatch[2])) {
                 description += `\n🟢 Buy | 总额: $${totalValue} |`;
+            } else {
+                description += `\n🔴 Sell | 总额: $${totalValue} |`;
             }
         }
     }
