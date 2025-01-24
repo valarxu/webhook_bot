@@ -178,14 +178,32 @@ async function processDescription(transaction) {
             description = await processTokenAddress(tokenAddress, description, dexscreenerLinks);
         }
 
-        // 添加 Buy/Sell 标记
-        const swapMatch = description.match(/swapped\s+([\d.]+)\s+([^\s]+).*?for/);
+        // 添加 Buy/Sell 标记和计算总额
+        let swapMatch = description.match(/swapped\s+([\d,.]+)\s+([^\s]+).*?\$([0-9.]+)\)/);
+        if (!swapMatch) {
+            // 尝试匹配第二种模式（SOL -> Token）
+            swapMatch = description.match(/swapped\s+([\d,.]+)\s+([^\s]+).*?for\s+([\d,.]+)\s+([^\s]+).*?\$([0-9.]+)\)/);
+        }
+
         if (swapMatch) {
-            const swappedToken = swapMatch[2];
-            if (['SOL', 'USDC', 'USDT'].includes(swappedToken)) {
-                description += '\n💰 Sell |';
+            let amount, token, price;
+            if (swapMatch.length === 4) {
+                // 第一种模式 (Token -> SOL)
+                amount = parseFloat(swapMatch[1].replace(/,/g, ''));
+                token = swapMatch[2];
+                price = parseFloat(swapMatch[3]);
             } else {
-                description += '\n🛍️ Buy |';
+                // 第二种模式 (SOL -> Token)
+                amount = parseFloat(swapMatch[3].replace(/,/g, ''));
+                token = swapMatch[4];
+                price = parseFloat(swapMatch[5]);
+            }
+            const totalValue = (amount * price).toFixed(2);
+
+            if (!['SOL', 'USDC', 'USDT'].includes(token)) {
+                description += `\n🔴 Sell | 总额: $${totalValue} |`;
+            } else {
+                description += `\n🟢 Buy | 总额: $${totalValue} |`;
             }
         }
     }
@@ -325,7 +343,6 @@ async function sendTelegramMessage(processedDescription, transaction, formattedT
     const message = `
 ${processedDescription}
 ${transaction.type} | ${formattedTime} | <a href="https://solscan.io/tx/${transaction.signature}">viewTx</a>
-👆 👆 👆
 `;
 
     for (let i = 0; i < retryCount; i++) {
