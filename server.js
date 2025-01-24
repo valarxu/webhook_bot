@@ -179,21 +179,21 @@ async function processDescription(transaction) {
         }
 
         // 添加 Buy/Sell 标记和计算总额
-        let swapMatch = description.match(/swapped\s+([\d,.]+)\s+([^\s]+).*?for\s+([\d,.]+)\s+([^\s]+).*?\$([0-9.]+)\)/);
+        let swapMatch = description.match(/swapped\s+([\d,.]+)\s+([^\s]+)(?:.*?\$([0-9.]+)\))?.*?for\s+([\d,.]+)\s+([^\s]+)(?:.*?\$([0-9.]+)\))?/);
         
         if (swapMatch) {
             let amount, token, price;
             // SOL -> Token 的情况
             if (['SOL', 'USDC', 'USDT'].includes(swapMatch[2])) {
-                amount = parseFloat(swapMatch[3].replace(/,/g, '')); // 使用第二个代币的数量
-                token = swapMatch[4]; // 第二个代币的符号
-                price = parseFloat(swapMatch[5]); // 价格
+                amount = parseFloat(swapMatch[4].replace(/,/g, '')); // 使用第二个代币的数量
+                token = swapMatch[5]; // 第二个代币的符号
+                price = parseFloat(swapMatch[6] || swapMatch[3]); // 使用第二个价格，如果没有则使用第一个价格
             } 
             // Token -> SOL 的情况
             else {
                 amount = parseFloat(swapMatch[1].replace(/,/g, '')); // 使用第一个代币的数量
                 token = swapMatch[2]; // 第一个代币的符号
-                price = parseFloat(swapMatch[5]); // 价格
+                price = parseFloat(swapMatch[3] || swapMatch[6]); // 使用第一个价格，如果没有则使用第二个价格
             }
             const totalValue = (amount * price).toFixed(2);
 
