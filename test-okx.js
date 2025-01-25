@@ -3,22 +3,20 @@ process.env.HTTP_PROXY = '';
 process.env.HTTPS_PROXY = '';
 
 require('dotenv').config();
-const { fetchOKXToken } = require('./utils/api');
+const { fetchOKXToken, fetchOKXTokenPrice } = require('./utils/api');
 
-// USDC 代币地址
-const USDC_ADDRESS = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-// BONK 代币地址
-const BONK_ADDRESS = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263';
+// ALON 代币地址
+const TOKEN_ADDRESS = '8XtRWb4uAAJFMP4QQhoYYCWR6XXb7ybcCdiqPwz9s5WS';
 
 async function testOKXAPI() {
     try {
-        console.log('测试 USDC 代币信息...');
-        const usdcResponse = await fetchOKXToken(USDC_ADDRESS);
-        console.log('USDC 响应:', JSON.stringify(usdcResponse.data, null, 2));
+        console.log('\n测试代币信息...');
+        const bonkResponse = await fetchOKXToken(TOKEN_ADDRESS);
+        console.log('TOKEN_ADDRESS 响应:', JSON.stringify(bonkResponse.data, null, 2));
 
-        console.log('\n测试 BONK 代币信息...');
-        const bonkResponse = await fetchOKXToken(BONK_ADDRESS);
-        console.log('BONK 响应:', JSON.stringify(bonkResponse.data, null, 2));
+        console.log('\n测试代币价格...');
+        const bonkPrice = await fetchOKXTokenPrice(TOKEN_ADDRESS);
+        console.log('TOKEN_ADDRESS 价格:', JSON.stringify(bonkPrice.data, null, 2));
     } catch (error) {
         if (error.response) {
             // API 响应中的错误
