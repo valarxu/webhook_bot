@@ -207,7 +207,7 @@ async function processDescription(transaction) {
 
     // 添加 Dexscreener 链接到描述末尾
     if (dexscreenerLinks.length > 0) {
-        description += dexscreenerLinks.join(' | ');
+        description += ' ' + dexscreenerLinks.join(' | ');
     }
 
     return description;
